@@ -84,9 +84,9 @@ export const Room = () => {
   const { socket, onlineUsers, user } = useSocket();
   useEffect(() => {
     if(!user) navigate('/');
+    if(!user) return null;
   }, [])
 
-  // const [webRTCConnection, setWebRTCConnection] = useState(null);
   const webRTCConnectionRef = useRef(null);
 
   const [remoteStream, setRemoteStream] = useState(null);
@@ -95,38 +95,34 @@ export const Room = () => {
   const [connectedUser, setConnectedUser] = useState({});
   const [calling, setCalling] = useState(false);
 
-  const setupMediaStream = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-      setMyStream(stream)
-      webRTCConnectionRef.current.addLocalStream(stream);
-    } catch (error) {
-      console.error('Error accessing media devices:', error);
-    }
-  };
 
-  useEffect(() => {
+  const initializeConnection = (async () => {
     webRTCConnectionRef.current = new WebRTCConnection();
+    console.log(webRTCConnectionRef.current)
     webRTCConnectionRef.current.onRemoteStream((stream) => {
       console.log("Handling received remote stream");
       setRemoteStream(stream);
     });
-    setupMediaStream();
 
-    return () => {
-      if (webRTCConnectionRef.current) {
-        webRTCConnectionRef.current.closeConnection();
-      }
-      if (myStream) {
-        myStream.getTracks().forEach((track) => track.stop());
+    const setupMediaStream = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        setMyStream(stream)
+        webRTCConnectionRef.current.addLocalStream(stream);
+      } catch (error) {
+        console.error('Error accessing media devices:', error);
       }
     };
-  }, []);
+
+    await setupMediaStream();
+  })
 
   const handleCallUser = useCallback(async (user) => {
+    await initializeConnection();
+
     if (!webRTCConnectionRef.current) {
       console.error("WebRTC connection is not initialized yet.");
       return;
@@ -135,9 +131,10 @@ export const Room = () => {
     await webRTCConnectionRef.current.createOffer();
     await new Promise(resolve => setTimeout(resolve, 1000));
     socket.emit('call_user', { to: user.socketId, offer: webRTCConnectionRef.current.peer.localDescription });
-  }, [socket]);
+  }, [socket, initializeConnection]);
 
   const handleIncomingCall = useCallback(async ({ from, offer, userData }) => {
+    await initializeConnection();
     // const aud = new Audio(audio)
     // await aud.play();
     console.log('incomming call');
@@ -155,7 +152,7 @@ export const Room = () => {
       // aud.pause()
       console.log("rejected")
     }
-  }, [socket]);
+  }, [socket, initializeConnection]);
 
   const handleCallAccepted = async ({ from, ans }) => {
     await webRTCConnectionRef.current.peer.setRemoteDescription(ans);
@@ -166,22 +163,32 @@ export const Room = () => {
 
   const handleEndCall = () => {
     socket.emit('end_call', {to: connectedUser.socketId});
-    setConnected(false);
-    setConnectedUser({});
-    webRTCConnection.getSenders()?.forEach(sender => webRTCConnection.removeTrack(sender))
-    closeConnection();
-    // navigate('/')
-    // navigate(0);
+    endConnection();
   }
 
-  const handelDisconnection = () => {
+  const endConnection = useCallback(() => {
     setConnected(false);
+    if (myStream) {
+      myStream.getTracks().forEach((track) => track.stop());
+      setMyStream(null);
+    }
+  
     setConnectedUser({});
-    webRTCConnection.getSenders()?.forEach(sender => webRTCConnection.removeTrack(sender))
-    closeConnection();
-    navigate('/')
-    navigate(0);
-  }
+    if (webRTCConnectionRef.current) {
+      webRTCConnectionRef.current.peer.getSenders().forEach((sender) => webRTCConnectionRef.current.peer.removeTrack(sender));
+      webRTCConnectionRef.current.closeConnection();
+      webRTCConnectionRef.current = null; // Reset ref
+    }
+
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      devices.forEach((device) => {
+        if (device.kind === 'videoinput' || device.kind === 'audioinput') {
+          console.log(`Device ${device.label} is now inactive`);
+        }
+      });
+    })
+  }, []);
+
   const handleNoResponse = () => {
     setCalling(false);
   }
@@ -189,16 +196,16 @@ export const Room = () => {
   useEffect(() => {
       socket.on('incomming_call', handleIncomingCall);
       socket.on('call_accepted', handleCallAccepted);
-      socket.on('call_disconnected', handelDisconnection);
+      socket.on('call_disconnected', endConnection);
       socket.on('no_response', handleNoResponse);
 
       return () => {
         socket.off('incomming_call', handleIncomingCall);
         socket.off('call_accepted', handleCallAccepted);        
-        socket.off('call_disconnected', handelDisconnection); 
+        socket.off('call_disconnected', endConnection); 
         socket.off('no_response', handleNoResponse);
       }
-    }, [socket, handleIncomingCall,  handleCallAccepted])
+    }, [socket, handleIncomingCall, handleCallAccepted, endConnection, handleNoResponse]);
   
   return (
       <div className="w-full min-h-screen">
