@@ -1,0 +1,111 @@
+.navbar {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 50px;
+  border-bottom: 1px solid grey;
+}
+.navbar .logo{
+  color: rgba(0, 0, 255, 0.677);
+  font-size: 30px;
+  font-weight: bolder;
+  font-style: italic;
+}
+.navbar .profile{
+  border-radius: 15px;
+  padding: 10px;
+  border: 1px solid grey;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgb(59, 59, 59);
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.room {
+    width: 100%;
+    min-height: 100%;
+}
+.main{
+  width: 100%;
+}
+
+
+.cta{
+  width: 100%;
+  padding: 60px;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: row;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 50px;
+  justify-content: center;
+}
+.metaData{
+  flex-basis: 70%;
+  font-size: 50px;
+}
+.userListContainer{
+  flex-basis: 30%;
+}
+
+/* ON CALL CALL SECION */
+.videoCall{
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.streamContainer {
+  padding: 50px 0 ;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.endCallbutton{
+  height: 50px;
+  align-items: center;
+  gap: 10px;
+  vertical-align: center;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  font-weight: 500;
+  color: #000;
+  border: none;
+  border-radius: 45px;
+  box-shadow: 0px 8px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease 0s;
+  cursor: pointer;
+  outline: none;
+  margin: 15px 0;
+  width: 150px;
+  background-color: rgb(255, 142, 142);
+}  
+.endCallbutton:hover{
+  background-color: red;
+  box-shadow: 0px 15px 20px rgb(255, 142, 142);
+  color: #fff;
+  transform: translateY(-7px);    
+}
+
+@media (max-width: 900px) {
+  .cta{
+    padding: 30px;
+    flex-direction: column;
+  }
+  .metaData{
+    font-size: 20px;
+  }
+
+  .streamContainer {
+      flex-direction: column;
+      padding: 0;
+  }
+}
