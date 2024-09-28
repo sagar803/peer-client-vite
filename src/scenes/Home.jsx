@@ -35,6 +35,7 @@ export const Home = () => {
   const handleRoomJoined = (data) => {
     setUser(data);
     setLoading(false);
+    // localStorage.setItem('name', data.name);
     navigate("/room");
   };
 

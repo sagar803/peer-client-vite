@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import useSocket from '../providers/Socket'
-import usePeer from '../providers/Peer';
+// import usePeer from '../providers/Peer';
 import { useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -84,8 +84,11 @@ export const Room = () => {
   const { socket, onlineUsers, user } = useSocket();
   useEffect(() => {
     if(!user) navigate('/');
-    if(!user) return null;
   }, [])
+
+  // useEffect(() => {
+  //   if(!(localStorage.getItem('name') && socket)) navigate('/');
+  // }, [])
 
   const webRTCConnectionRef = useRef(null);
 
@@ -94,7 +97,6 @@ export const Room = () => {
   const [connected, setConnected] = useState(false);
   const [connectedUser, setConnectedUser] = useState({});
   const [calling, setCalling] = useState(false);
-
 
   const initializeConnection = (async () => {
     webRTCConnectionRef.current = new WebRTCConnection();
@@ -127,28 +129,29 @@ export const Room = () => {
       console.error("WebRTC connection is not initialized yet.");
       return;
     }
-    setCalling(user.socketId);
+    setCalling(user.id);
     await webRTCConnectionRef.current.createOffer();
     await new Promise(resolve => setTimeout(resolve, 1000));
-    socket.emit('call_user', { to: user.socketId, offer: webRTCConnectionRef.current.peer.localDescription });
+    socket.emit('call_user', { to: user.id, offer: webRTCConnectionRef.current.peer.localDescription });
   }, [socket, initializeConnection]);
 
-  const handleIncomingCall = useCallback(async ({ from, offer, userData }) => {
+  const handleIncomingCall = useCallback(async ({ from, offer }) => {
     await initializeConnection();
     // const aud = new Audio(audio)
     // await aud.play();
     console.log('incomming call');
-    toast(`Incomming Call from ${userData.name}`, { autoClose: 4000 });
+    toast(`Incomming Call`, { autoClose: 4000 });
     
     const userResponse = window.confirm("Accept Incomming Video Call");
     if(userResponse){
-      setConnectedUser({socketId: from , userData});
+      const user = onlineUsers.find(user => user.id === from);
+      setConnectedUser(user);
       setConnected(true);
       const ans = await webRTCConnectionRef.current.createAnswer(offer);
-      socket.emit('call_accepted', { to: from, ans , user});
+      socket.emit('call_accepted', { to: from, ans});
     }
     else {
-      socket.emit('no_response', { to: from, user});
+      socket.emit('no_response', { to: from});
       // aud.pause()
       console.log("rejected")
     }
@@ -158,11 +161,12 @@ export const Room = () => {
     await webRTCConnectionRef.current.peer.setRemoteDescription(ans);
     console.log('Call got accepted');
     setConnected(true)
-    setConnectedUser({socketId: from , user});
+    const user = onlineUsers.find(user => user.id === from);
+    setConnectedUser(user);
   }
 
   const handleEndCall = () => {
-    socket.emit('end_call', {to: connectedUser.socketId});
+    socket.emit('end_call', {to: connectedUser.id});
     endConnection();
   }
 
@@ -230,7 +234,7 @@ export const Room = () => {
               <>
                 <div className="w-full flex flex-col justify-center items-center">
                   <div className="w-full flex justify-center items-center py-12">
-                    {remoteStream && <Player stream={remoteStream} email={connectedUser?.user?.name} muted={false} />}
+                    {remoteStream && <Player stream={remoteStream} email={connectedUser.name} muted={false} />}
                     {myStream && <Player stream={myStream} email={"My Stream"} muted={true} />}
                   </div>
                   <button onClick={handleEndCall} className="h-12 w-36 mt-4 text-xs font-medium uppercase tracking-widest bg-red-200 text-black rounded-full shadow-md hover:bg-red-500 hover:shadow-lg hover:text-white transform hover:-translate-y-2 transition-all ease-out duration-300">

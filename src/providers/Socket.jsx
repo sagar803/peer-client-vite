@@ -6,21 +6,22 @@ const socketContext = createContext(null);
 export const SocketProvider = ({ children }) => {
     const backendURL = import.meta.env.VITE_APP_SERVER;
     const socket = useMemo(() => io(backendURL), [backendURL]);
-    const [user, setUser] = useState(null); // Initialize as null
+    const [user, setUser] = useState();
     const [onlineUsers, setOnlineUsers] = useState([]);
 
     useEffect(() => {
-        socket.on('login_successful', (data) => setUser(data));
-
         socket.on('online-users', ({ onlineUsers }) => {
-            const updatedOnlineUser = onlineUsers.filter(
-                ({ socketId }) => socketId !== socket.id
-            );
+            const updatedOnlineUser = onlineUsers.filter(({ id }) => id !== socket.id);
             setOnlineUsers(updatedOnlineUser);
         });
+          
+        // socket.on('refresh', (socketId) => {
+        //     const name = localStorage.getItem('username');            
+        //     if (name) setUser({name, socketId });        
+        // });
+
 
         return () => {
-            socket.off('login_successful');
             socket.off('online-users');
         };
     }, [socket, user]);
