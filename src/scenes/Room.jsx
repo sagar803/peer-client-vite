@@ -4,21 +4,91 @@ import usePeer from '../providers/Peer';
 import { useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import styles from './Room.module.css'
 import { OnlineUserList } from '../components/OnlineUserList';
 import { Player } from '../components/Player';
 import { User } from 'react-feather';
 // import audio from '../asset/ringtone.mp3'
 
+class WebRTCConnection {
+  constructor() {
+    this.peer = this.initializePeerConnection();
+  }
+
+  initializePeerConnection() {
+    const peer = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: [
+            "stun:stun.l.google.com:19302",
+            "stun:global.stun.twilio.com:3478",
+          ],
+        },
+      ],
+    });
+
+    // Listen for ICE candidates
+    // peer.onicecandidate = (event) => {
+    //   if (event.candidate) {
+    //     console.log("New ICE candidate:", event.candidate);
+    //     // Send the ICE candidate to the remote peer
+    //   }
+    // };
+
+    // Listen for remote tracks added to the connection
+    peer.ontrack = (event) => {
+      console.log("Received remote stream:", event.streams[0]);
+      if (this.onRemoteStream) {
+        // Call the callback function to handle the remote stream
+        this.onRemoteStream(event.streams[0]);
+      }
+    };
+
+    return peer;
+  }
+
+  async createOffer() {
+    const offer = await this.peer.createOffer();
+    await this.peer.setLocalDescription(offer);
+    return offer;
+  }
+
+  async createAnswer(offer) {
+    await this.peer.setRemoteDescription(offer);
+    const answer = await this.peer.createAnswer();
+    await this.peer.setLocalDescription(answer);
+    return answer;
+  }
+
+  addLocalStream(localStream) {
+    localStream.getTracks().forEach((track) => {
+      this.peer.addTrack(track, localStream);
+    });
+  }
+
+  setRemoteDescription(description) {
+    this.peer.setRemoteDescription(description);
+  }
+
+  closeConnection() {
+    this.peer.close();
+  }
+
+  onRemoteStream(callback) {
+    this.onRemoteStream = callback;
+  }
+}
+
 export const Room = () => {
-  
+
   const navigate = useNavigate();
   const { socket, onlineUsers, user } = useSocket();
   useEffect(() => {
     if(!user) navigate('/');
   }, [])
 
-  const { peer, createOffer , createAnswer, closeConnection} = usePeer();
+  // const [webRTCConnection, setWebRTCConnection] = useState(null);
+  const webRTCConnectionRef = useRef(null);
+
   const [remoteStream, setRemoteStream] = useState(null);
   const [myStream, setMyStream] = useState(null);
   const [connected, setConnected] = useState(false);
@@ -32,50 +102,39 @@ export const Room = () => {
         audio: true 
       });
       setMyStream(stream)
-      stream.getTracks().forEach(track => peer.addTrack(track, stream));
+      webRTCConnectionRef.current.addLocalStream(stream);
     } catch (error) {
       console.error('Error accessing media devices:', error);
     }
   };
 
   useEffect(() => {
+    webRTCConnectionRef.current = new WebRTCConnection();
+    webRTCConnectionRef.current.onRemoteStream((stream) => {
+      console.log("Handling received remote stream");
+      setRemoteStream(stream);
+    });
     setupMediaStream();
-    peer.ontrack = (event) => {
-      const remoteStream = event.streams[0];
-      setRemoteStream(remoteStream)
-    }; 
-  }, []);
-  
-  const handleCallUser = useCallback(async (user) => {
 
-    const remoteSocketId = user.socketId;
-    setCalling(user.socketId);
-/*
-    const sendChannel = peer.createDataChannel('channel');
-    peer.channel = sendChannel;
-    sendChannel.onopen = () => alert('Connected');
-    sendChannel.onclose = () => alert('Disconnected');
-*/
-    await createOffer();
-    /*
-      A pause of 1 second is taken because the icecandidates are changing again and again, and to let it settle 1 second pause is taken
-      peer.onicecandidate = (e) => setOffer(JSON.stringify(peer.localDescription));
-      
-      peer.onicecandidate = (event) => {
-        if(peer.setRemoteDescription){
-          if(event.candidate) {
-            socket.emit('ice-candidate', { to : remoteSocketId , candidate: event.candidate})
-          }
-        }
+    return () => {
+      if (webRTCConnectionRef.current) {
+        webRTCConnectionRef.current.closeConnection();
       }
-    */
+      if (myStream) {
+        myStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const handleCallUser = useCallback(async (user) => {
+    if (!webRTCConnectionRef.current) {
+      console.error("WebRTC connection is not initialized yet.");
+      return;
+    }
+    setCalling(user.socketId);
+    await webRTCConnectionRef.current.createOffer();
     await new Promise(resolve => setTimeout(resolve, 1000));
-      /*
-      In the context of the await keyword, it does pause the execution of the function in which it is used. 
-      However, it doesn't block the entire JavaScript runtime or prevent other parts of your application from running. 
-      The rest of your application, outside the scope of the handleCallUser function, can continue executing while this function is waiting.
-      */
-    socket.emit('call_user', { to: remoteSocketId, offer: peer.localDescription });
+    socket.emit('call_user', { to: user.socketId, offer: webRTCConnectionRef.current.peer.localDescription });
   }, [socket]);
 
   const handleIncomingCall = useCallback(async ({ from, offer, userData }) => {
@@ -88,15 +147,7 @@ export const Room = () => {
     if(userResponse){
       setConnectedUser({socketId: from , userData});
       setConnected(true);
-      /*
-      peer.ondatachannel = (e) => {
-        const receiveChannel = e.channel;
-        receiveChannel.onopen = () => alert('Connected');
-        receiveChannel.onclose = () => alert('Disconnected');
-        peer.channel = receiveChannel;
-      };
-      */
-      const ans = await createAnswer(offer);
+      const ans = await webRTCConnectionRef.current.createAnswer(offer);
       socket.emit('call_accepted', { to: from, ans , user});
     }
     else {
@@ -107,7 +158,7 @@ export const Room = () => {
   }, [socket]);
 
   const handleCallAccepted = async ({ from, ans }) => {
-    await peer.setRemoteDescription(ans);
+    await webRTCConnectionRef.current.peer.setRemoteDescription(ans);
     console.log('Call got accepted');
     setConnected(true)
     setConnectedUser({socketId: from , user});
@@ -117,16 +168,16 @@ export const Room = () => {
     socket.emit('end_call', {to: connectedUser.socketId});
     setConnected(false);
     setConnectedUser({});
-    peer.getSenders()?.forEach(sender => peer.removeTrack(sender))
+    webRTCConnection.getSenders()?.forEach(sender => webRTCConnection.removeTrack(sender))
     closeConnection();
-    navigate('/')
-    navigate(0);
+    // navigate('/')
+    // navigate(0);
   }
 
   const handelDisconnection = () => {
     setConnected(false);
     setConnectedUser({});
-    peer.getSenders()?.forEach(sender => peer.removeTrack(sender))
+    webRTCConnection.getSenders()?.forEach(sender => webRTCConnection.removeTrack(sender))
     closeConnection();
     navigate('/')
     navigate(0);
@@ -134,29 +185,18 @@ export const Room = () => {
   const handleNoResponse = () => {
     setCalling(false);
   }
-    /*
-    const handleIceCandidate = ({from , candidate}) => {
-      console.log(candidate)
-      if(peer.remoteDescription){
-        if(candidate){
-          peer.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      }
-    }
-    */
+
   useEffect(() => {
       socket.on('incomming_call', handleIncomingCall);
       socket.on('call_accepted', handleCallAccepted);
       socket.on('call_disconnected', handelDisconnection);
       socket.on('no_response', handleNoResponse);
-      //        socket.on('ice-candidate', handleIceCandidate);
 
       return () => {
         socket.off('incomming_call', handleIncomingCall);
         socket.off('call_accepted', handleCallAccepted);        
         socket.off('call_disconnected', handelDisconnection); 
         socket.off('no_response', handleNoResponse);
-        //          socket.off('ice-candidate', handleIceCandidate);
       }
     }, [socket, handleIncomingCall,  handleCallAccepted])
   
