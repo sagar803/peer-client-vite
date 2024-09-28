@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { OnlineUserList } from '../components/OnlineUserList';
 import { Player } from '../components/Player';
 import { User } from 'react-feather';
+import { CounterClockwiseClockIcon } from '@radix-ui/react-icons';
 // import audio from '../asset/ringtone.mp3'
 
 class WebRTCConnection {
@@ -123,6 +124,7 @@ export const Room = () => {
   })
 
   const handleCallUser = useCallback(async (user) => {
+    endConnection()
     await initializeConnection();
 
     if (!webRTCConnectionRef.current) {
@@ -170,28 +172,67 @@ export const Room = () => {
     endConnection();
   }
 
-  const endConnection = useCallback(() => {
-    setConnected(false);
-    if (myStream) {
-      myStream.getTracks().forEach((track) => track.stop());
-      setMyStream(null);
-    }
-  
-    setConnectedUser({});
-    if (webRTCConnectionRef.current) {
-      webRTCConnectionRef.current.peer.getSenders().forEach((sender) => webRTCConnectionRef.current.peer.removeTrack(sender));
-      webRTCConnectionRef.current.closeConnection();
-      webRTCConnectionRef.current = null; // Reset ref
+const endConnection = useCallback(() => {
+  setConnected(false);
+  setRemoteStream(null);
+
+  if (myStream) {myStream.getTracks().forEach((track) => {
+      track.stop();
+      myStream.removeTrack(track);
+    });
+    setMyStream(null);
+  }
+
+  if (webRTCConnectionRef.current && webRTCConnectionRef.current.peer) {
+    const pc = webRTCConnectionRef.current.peer;
+    console.log(webRTCConnectionRef.current)
+
+    // pc.getDataChannels().forEach(channel => channel.close());
+    // pc.getSenders().forEach((sender) => pc.removeTrack(sender));
+    pc.close();
+
+    webRTCConnectionRef.current.peer = null;
+
+    // Log the final states
+    console.log('Final ICE Connection State:', pc.iceConnectionState);
+    console.log('Final Connection State:', pc.connectionState);
+    console.log('Final Signaling State:', pc.signalingState);
+
+    // Force state changes if necessary
+    if (pc.iceConnectionState !== 'closed') {
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE Connection State forced to close');
+      };
+      pc.setConfiguration(pc.getConfiguration());
     }
 
-    navigator.mediaDevices.enumerateDevices().then((devices) => {
+    if (pc.signalingState !== 'closed') {
+      pc.onsignalingstatechange = () => {
+        console.log('Signaling State forced to close');
+      };
+      pc.setLocalDescription({type: 'rollback'}).catch(console.error);
+    }
+  }
+
+  // Nullify the WebRTCConnection instance
+  webRTCConnectionRef.current = null;
+
+  // Reset connected user state
+  setConnectedUser({});
+
+  // Optional: Check and release media devices
+  navigator.mediaDevices.enumerateDevices()
+    .then((devices) => {
       devices.forEach((device) => {
         if (device.kind === 'videoinput' || device.kind === 'audioinput') {
-          console.log(`Device ${device.label} is now inactive`);
+          console.log(`Device ${device.label} status checked`);
         }
       });
     })
-  }, []);
+    .catch(err => console.error('Error enumerating devices:', err));
+
+  console.log('Connection ended and all resources cleared');
+}, [myStream]);
 
   const handleNoResponse = () => {
     setCalling(false);
