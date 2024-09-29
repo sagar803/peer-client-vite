@@ -6,6 +6,8 @@ import { SocketProvider } from "./providers/Socket";
 import { Room } from "./scenes/Room";
 import { PeerProvider } from "./providers/Peer";
 import { useState } from "react";
+import { Toaster } from "./components/ui/sonner";
+
 
 function App() {
 
@@ -21,6 +23,7 @@ function App() {
           </PeerProvider>
         </BrowserRouter>
       </SocketProvider>
+      <Toaster expand={false} position="bottom-right" richColors/>
     </div>
   );
 }

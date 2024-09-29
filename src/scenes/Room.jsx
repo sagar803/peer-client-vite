@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import useSocket from '../providers/Socket'
 // import usePeer from '../providers/Peer';
 import { useNavigate } from 'react-router-dom';
-import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { OnlineUserList } from '../components/OnlineUserList';
 import { Player } from '../components/Player';
 import { User } from 'react-feather';
-import { CounterClockwiseClockIcon } from '@radix-ui/react-icons';
-// import audio from '../asset/ringtone.mp3'
+import audio from '../assets/ringtone.mp3';
+import { cn } from "../lib/utils";
+import { DotPattern } from "../components/ui/dot-pattern";
+import { toast } from "sonner"
+
 
 class WebRTCConnection {
   constructor() {
@@ -80,7 +82,6 @@ class WebRTCConnection {
 }
 
 export const Room = () => {
-
   const navigate = useNavigate();
   const { socket, onlineUsers, user } = useSocket();
   useEffect(() => {
@@ -131,7 +132,7 @@ export const Room = () => {
       console.error("WebRTC connection is not initialized yet.");
       return;
     }
-    setCalling(user.id);
+    setCalling(user);
     await webRTCConnectionRef.current.createOffer();
     await new Promise(resolve => setTimeout(resolve, 1000));
     socket.emit('call_user', { to: user.id, offer: webRTCConnectionRef.current.peer.localDescription });
@@ -139,24 +140,40 @@ export const Room = () => {
 
   const handleIncomingCall = useCallback(async ({ from, offer }) => {
     await initializeConnection();
-    // const aud = new Audio(audio)
-    // await aud.play();
-    console.log('incomming call');
-    toast(`Incomming Call`, { autoClose: 4000 });
-    
-    const userResponse = window.confirm("Accept Incomming Video Call");
-    if(userResponse){
+    const aud = new Audio(audio)
+    await aud.play();
+    const accepted = async () => {
       const user = onlineUsers.find(user => user.id === from);
       setConnectedUser(user);
       setConnected(true);
       const ans = await webRTCConnectionRef.current.createAnswer(offer);
       socket.emit('call_accepted', { to: from, ans});
+      aud.pause()
     }
-    else {
-      socket.emit('no_response', { to: from});
-      // aud.pause()
+    const rejected = () => {
+      socket.emit('call_rejected', { to: from});
+      aud.pause()
       console.log("rejected")
+      endConnection()
     }
+    toast("Incoming Call", {
+      description: `Call from ${onlineUsers.find(user => user.id === from)?.name}`,
+      action: {
+        label: "Accept",
+        onClick: () => accepted(),
+      },
+      closeButton: true,
+      onDismiss: () => rejected(),
+      onAutoClose: () => rejected(),
+      classNames: {
+        toast: 'bg-white',
+        title: '',
+        actionButton: 'bg-red-500 hover:bg-red-400 text-white py-1 px-3 rounded',
+        cancelButton: 'cursor-pointer bg-white',
+        closeButton: 'cursor-pointer bg-white',
+      },
+      duration: 11000
+    });
   }, [socket, initializeConnection]);
 
   const handleCallAccepted = async ({ from, ans }) => {
@@ -165,6 +182,7 @@ export const Room = () => {
     setConnected(true)
     const user = onlineUsers.find(user => user.id === from);
     setConnectedUser(user);
+    setCalling(null);
   }
 
   const handleEndCall = () => {
@@ -175,6 +193,7 @@ export const Room = () => {
 const endConnection = useCallback(() => {
   setConnected(false);
   setRemoteStream(null);
+  setCalling(null);
 
   if (myStream) {myStream.getTracks().forEach((track) => {
       track.stop();
@@ -193,10 +212,10 @@ const endConnection = useCallback(() => {
 
     webRTCConnectionRef.current.peer = null;
 
-    // Log the final states
-    console.log('Final ICE Connection State:', pc.iceConnectionState);
-    console.log('Final Connection State:', pc.connectionState);
-    console.log('Final Signaling State:', pc.signalingState);
+    // // Log the final states
+    // console.log('Final ICE Connection State:', pc.iceConnectionState);
+    // console.log('Final Connection State:', pc.connectionState);
+    // console.log('Final Signaling State:', pc.signalingState);
 
     // Force state changes if necessary
     if (pc.iceConnectionState !== 'closed') {
@@ -234,26 +253,43 @@ const endConnection = useCallback(() => {
   console.log('Connection ended and all resources cleared');
 }, [myStream]);
 
-  const handleNoResponse = () => {
-    setCalling(false);
-  }
+
+const handleCallEnded = () => {
+  toast.info('Call Ended', { closeButton: true });
+  endConnection();  
+}
+
+const handleDeclinedOrNoResponse = () => {
+  toast.error(`${calling?.name} is either busy or disconnected`, {
+    description: "Please try again later",
+    closeButton: true,
+  })
+  endConnection();
+}
+
 
   useEffect(() => {
       socket.on('incomming_call', handleIncomingCall);
       socket.on('call_accepted', handleCallAccepted);
-      socket.on('call_disconnected', endConnection);
-      socket.on('no_response', handleNoResponse);
+      socket.on('call_disconnected', handleCallEnded);
+      socket.on('call_rejected', handleDeclinedOrNoResponse);
 
       return () => {
         socket.off('incomming_call', handleIncomingCall);
         socket.off('call_accepted', handleCallAccepted);        
-        socket.off('call_disconnected', endConnection); 
-        socket.off('no_response', handleNoResponse);
+        socket.off('call_disconnected', handleCallEnded); 
+        socket.off('call_rejected', handleDeclinedOrNoResponse);
       }
-    }, [socket, handleIncomingCall, handleCallAccepted, endConnection, handleNoResponse]);
+    }, [socket, handleIncomingCall, handleCallAccepted, handleDeclinedOrNoResponse]);
   
   return (
       <div className="w-full min-h-screen">
+        <DotPattern
+          cr={1}
+          className={cn(
+            "[mask-image:radial-gradient(300px_circle_at_center,white,transparent)]",
+          )}
+        />
         <nav className="w-full flex justify-between p-5 border-b border-gray-400 box-border">
           <span className="text-blue-500 text-2xl font-bold italic">Peer</span>
           <span className="flex items-center gap-2 p-2 border border-gray-400 rounded-lg text-gray-600 text-xl font-normal">
@@ -286,7 +322,6 @@ const endConnection = useCallback(() => {
             )
           }
         </section>
-        <ToastContainer className="custom-toast-container" />
       </div>
   )
 }
