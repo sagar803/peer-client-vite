@@ -8,11 +8,9 @@ import { ScrollArea } from '../components/ui/scroll-area';
 
 export const OnlineUserList = ({ calling, onlineUsers, handleCallUser }) => {
   return (
-    <Card className="w-48 p-4 m-4 rounded-lg shadow-lg border">
-      <p className="text-lg font-semibold mb-2">
-        Online Users
-      </p>
-      <ScrollArea className="max-h-60">
+    <Card className="w-56 p-4 m-4 rounded-lg shadow-lg border">
+      <p className="text-lg font-semibold mb-2"> Online Users </p>
+      <ScrollArea className="h-72 w-full rounded-md">
         {onlineUsers && onlineUsers.length > 0 ? (
           <div className="space-y-4">
             {onlineUsers.map((user) => (
@@ -33,6 +31,7 @@ export const OnlineUserList = ({ calling, onlineUsers, handleCallUser }) => {
         ) : (
           <p className="text-sm text-gray-500">No one is online</p>
         )}
+      
       </ScrollArea>
     </Card>
   );

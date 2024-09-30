@@ -3,7 +3,7 @@ import ReactPlayer from 'react-player';
 import { Volume2, VolumeX } from 'react-feather';
 
 export const Player = (props) => {
-  const { stream, email, muted } = props;
+  const { stream, name, muted, className } = props;
   const [mute, setMute] = useState(muted);
 
   const handleMute = () => {
@@ -11,9 +11,9 @@ export const Player = (props) => {
   };
 
   return (
-    <div className="relative h-[450px] m-5 bg-whitesmoke">
-      <p className="absolute top-0 left-0 bg-white px-5 py-2 rounded-r-md">
-        {email}
+    <div className={`${className} relative m-5 bg-whitesmoke`}>
+      <p className="absolute top-2 left-0 bg-white px-3 py-1 rounded-r-md font-semibold">
+        {name}
       </p>
       <i
         className="absolute top-2 right-2 z-10 flex items-center justify-center w-12 h-12 bg-white text-black cursor-pointer rounded-full"

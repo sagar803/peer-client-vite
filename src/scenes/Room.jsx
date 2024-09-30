@@ -12,6 +12,7 @@ import { cn } from "../lib/utils";
 import { DotPattern } from "../components/ui/dot-pattern";
 import { toast } from "sonner"
 import { LogOutIcon } from 'lucide-react';
+import Call from '../components/Call';
 
 
 class WebRTCConnection {
@@ -88,6 +89,10 @@ export const Room = () => {
   const { socket, onlineUsers, user } = useSocket();
   useEffect(() => {
     if(!user) navigate('/');
+    const handleUnload = () => {
+      if(connected) handleEndCall();
+      window.addEventListener("onunload", handleUnload);
+    }
   }, [])
 
   // useEffect(() => {
@@ -145,6 +150,7 @@ export const Room = () => {
     await initializeConnection();
     const aud = new Audio(audio)
     await aud.play();
+    // if(connected) rejected();
     const accepted = async () => {
       const user = onlineUsers.find(user => user.id === from);
       setConnectedUser(user);
@@ -194,83 +200,83 @@ export const Room = () => {
     endConnection();
   }
 
-const endConnection = useCallback(() => {
-  setConnected(false);
-  setRemoteStream(null);
-  audioRef.current.pause();
-  setCalling(null);
+  const endConnection = useCallback(() => {
+    setConnected(false);
+    setRemoteStream(null);
+    audioRef.current.pause();
+    setCalling(null);
 
-  if (myStream) {myStream.getTracks().forEach((track) => {
-      track.stop();
-      myStream.removeTrack(track);
-    });
-    setMyStream(null);
-  }
-
-  if (webRTCConnectionRef.current && webRTCConnectionRef.current.peer) {
-    const pc = webRTCConnectionRef.current.peer;
-    console.log(webRTCConnectionRef.current)
-
-    // pc.getDataChannels().forEach(channel => channel.close());
-    // pc.getSenders().forEach((sender) => pc.removeTrack(sender));
-    pc.close();
-
-    webRTCConnectionRef.current.peer = null;
-
-    // // Log the final states
-    // console.log('Final ICE Connection State:', pc.iceConnectionState);
-    // console.log('Final Connection State:', pc.connectionState);
-    // console.log('Final Signaling State:', pc.signalingState);
-
-    // Force state changes if necessary
-    if (pc.iceConnectionState !== 'closed') {
-      pc.oniceconnectionstatechange = () => {
-        console.log('ICE Connection State forced to close');
-      };
-      pc.setConfiguration(pc.getConfiguration());
-    }
-
-    if (pc.signalingState !== 'closed') {
-      pc.onsignalingstatechange = () => {
-        console.log('Signaling State forced to close');
-      };
-      pc.setLocalDescription({type: 'rollback'}).catch(console.error);
-    }
-  }
-
-  // Nullify the WebRTCConnection instance
-  webRTCConnectionRef.current = null;
-
-  // Reset connected user state
-  setConnectedUser({});
-
-  // Optional: Check and release media devices
-  navigator.mediaDevices.enumerateDevices()
-    .then((devices) => {
-      devices.forEach((device) => {
-        if (device.kind === 'videoinput' || device.kind === 'audioinput') {
-          console.log(`Device ${device.label} status checked`);
-        }
+    if (myStream) {myStream.getTracks().forEach((track) => {
+        track.stop();
+        myStream.removeTrack(track);
       });
+      setMyStream(null);
+    }
+
+    if (webRTCConnectionRef.current && webRTCConnectionRef.current.peer) {
+      const pc = webRTCConnectionRef.current.peer;
+      console.log(webRTCConnectionRef.current)
+
+      // pc.getDataChannels().forEach(channel => channel.close());
+      // pc.getSenders().forEach((sender) => pc.removeTrack(sender));
+      pc.close();
+
+      webRTCConnectionRef.current.peer = null;
+
+      // // Log the final states
+      // console.log('Final ICE Connection State:', pc.iceConnectionState);
+      // console.log('Final Connection State:', pc.connectionState);
+      // console.log('Final Signaling State:', pc.signalingState);
+
+      // Force state changes if necessary
+      if (pc.iceConnectionState !== 'closed') {
+        pc.oniceconnectionstatechange = () => {
+          console.log('ICE Connection State forced to close');
+        };
+        pc.setConfiguration(pc.getConfiguration());
+      }
+
+      if (pc.signalingState !== 'closed') {
+        pc.onsignalingstatechange = () => {
+          console.log('Signaling State forced to close');
+        };
+        pc.setLocalDescription({type: 'rollback'}).catch(console.error);
+      }
+    }
+
+    // Nullify the WebRTCConnection instance
+    webRTCConnectionRef.current = null;
+
+    // Reset connected user state
+    setConnectedUser({});
+
+    // Optional: Check and release media devices
+    navigator.mediaDevices.enumerateDevices()
+      .then((devices) => {
+        devices.forEach((device) => {
+          if (device.kind === 'videoinput' || device.kind === 'audioinput') {
+            console.log(`Device ${device.label} status checked`);
+          }
+        });
+      })
+      .catch(err => console.error('Error enumerating devices:', err));
+
+    console.log('Connection ended and all resources cleared');
+  }, [myStream]);
+
+
+  const handleCallEnded = () => {
+    toast.info('Call Ended', { closeButton: true });
+    endConnection();  
+  }
+
+  const handleDeclinedOrNoResponse = () => {
+    toast.error(`${calling?.name} has declined you call`, {
+      description: "Please try again later",
+      closeButton: true,
     })
-    .catch(err => console.error('Error enumerating devices:', err));
-
-  console.log('Connection ended and all resources cleared');
-}, [myStream]);
-
-
-const handleCallEnded = () => {
-  toast.info('Call Ended', { closeButton: true });
-  endConnection();  
-}
-
-const handleDeclinedOrNoResponse = () => {
-  toast.error(`${calling?.name} is either busy or disconnected`, {
-    description: "Please try again later",
-    closeButton: true,
-  })
-  endConnection();
-}
+    endConnection();
+  }
 
 
   useEffect(() => {
@@ -289,12 +295,6 @@ const handleDeclinedOrNoResponse = () => {
   
   return (
       <div className="w-full min-h-screen">
-        <DotPattern
-          cr={1}
-          className={cn(
-            "[mask-image:radial-gradient(300px_circle_at_center,white,transparent)]",
-          )}
-        />
         <nav className="w-full flex justify-between p-5 border-b border-gray-400 box-border">
           <span className="text-blue-500 text-2xl font-bold italic">Peer</span>
             <div className="flex items-center gap-2 p-1 border border-gray-400 rounded-md text-gray-600 text-xl font-normal">
@@ -309,26 +309,20 @@ const handleDeclinedOrNoResponse = () => {
           {
             !connected ? (
               <>
-                <div className="w-full min-h-[80vh] p-4 lg:p-16 flex flex-col lg:flex-row items-center justify-center gap-12 box-border">
-                  <div className="flex-[0_0_70%] lg:text-5xl text-2xl font-bold">Seamless Connections, Anytime, Anywhere! 🚀</div>
-                  <div className="flex-[0_0_30%]">
+                <DotPattern
+                  cr={1}
+                  className={cn(
+                    "[mask-image:radial-gradient(300px_circle_at_center,white,transparent)]",
+                  )}
+                />
+                <div className="w-full min-h-[80vh] p-4 lg:p-16 flex flex-col lg:flex-row items-center justify-center gap-12">
+                  <div className="lg:flex-[0_0_70%] lg:text-5xl text-2xl font-bold">Seamless Connections, Anytime, Anywhere! 🚀</div>
+                  <div className="lg:flex-[0_0_30%]">
                     <OnlineUserList calling={calling} onlineUsers={onlineUsers} handleCallUser={handleCallUser} />
                   </div>
                 </div>
               </>
-            ) : (
-              <>
-                <div className="w-full flex flex-col justify-center items-center">
-                  <div className="w-full flex justify-center items-center py-12">
-                    {remoteStream && <Player stream={remoteStream} email={connectedUser.name} muted={false} />}
-                    {myStream && <Player stream={myStream} email={"My Stream"} muted={true} />}
-                  </div>
-                  <button onClick={handleEndCall} className="h-12 w-36 mt-4 text-xs font-medium uppercase tracking-widest bg-red-200 text-black rounded-full shadow-md hover:bg-red-500 hover:shadow-lg hover:text-white transform hover:-translate-y-2 transition-all ease-out duration-300">
-                    Disconnect
-                  </button>
-                </div>
-              </>
-            )
+            ) : <Call remoteStream={remoteStream} myStream={myStream} connectedUser={connectedUser} handleEndCall={handleEndCall} />
           }
         </section>
       </div>

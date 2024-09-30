@@ -8,13 +8,14 @@ import  ShimmerButton  from "../components/ui/shimmer-button";
 
 export const Home = () => {
   const navigate = useNavigate();
-  const { socket, setUser } = useSocket();
+  const { socket, setUser, user } = useSocket();
   const [name, setName] = useState('')
   const [error, setError] = useState({});
   const inputRef = useRef();
   const [loading, setLoading] = useState();
-
+  
   useEffect(() => {
+    if(user) navigate('/room')
     inputRef.current.focus();
   }, []);
 

@@ -13,6 +13,7 @@ export const SocketProvider = ({ children }) => {
         socket.on('online-users', ({ onlineUsers }) => {
             const updatedOnlineUser = onlineUsers.filter(({ id }) => id !== socket.id);
             setOnlineUsers(updatedOnlineUser);
+            console.log(updatedOnlineUser)
         });
           
         // socket.on('refresh', (socketId) => {
@@ -20,9 +21,12 @@ export const SocketProvider = ({ children }) => {
         //     if (name) setUser({name, socketId });        
         // });
 
+        const handleUnload = () => socket.close();
+        window.addEventListener("onunload", handleUnload);
 
         return () => {
-            socket.off('online-users');
+            // socket.off('online-users');
+            // window.removeEventListener("onunload", handleBeforeUnload);
         };
     }, [socket, user]);
 
