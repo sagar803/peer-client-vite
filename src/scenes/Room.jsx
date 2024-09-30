@@ -4,7 +4,6 @@ import useSocket from '../providers/Socket'
 import { useNavigate } from 'react-router-dom';
 import 'react-toastify/dist/ReactToastify.css';
 import { OnlineUserList } from '../components/OnlineUserList';
-import { Player } from '../components/Player';
 import { User } from 'react-feather';
 import audio from '../assets/ringtone.mp3';
 import callertone from '../assets/callertone.mp3';
@@ -86,7 +85,7 @@ class WebRTCConnection {
 
 export const Room = () => {
   const navigate = useNavigate();
-  const { socket, onlineUsers, user } = useSocket();
+  const { socket, onlineUsers, user, setUser } = useSocket();
   useEffect(() => {
     if(!user) navigate('/');
     const handleUnload = () => {
@@ -277,6 +276,11 @@ export const Room = () => {
     })
     endConnection();
   }
+  const handleLogout = () => {
+    setUser(null)
+    endConnection(); 
+    navigate('/');
+  }
 
 
   useEffect(() => {
@@ -299,7 +303,7 @@ export const Room = () => {
           <span className="text-blue-500 text-2xl font-bold italic">Peer</span>
             <div className="flex items-center gap-2 p-1 border border-gray-400 rounded-md text-gray-600 text-xl font-normal">
               <User />{user?.name}
-              <i onClick={() => navigate('/')} className='cursor-pointer size-10 bg-black flex items-center justify-center rounded-md'>
+                <i onClick={handleLogout} className='cursor-pointer size-10 bg-black flex items-center justify-center rounded-md'>
               <LogOutIcon color='white'/>
               </i>
 
