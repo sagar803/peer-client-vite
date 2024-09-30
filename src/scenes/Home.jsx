@@ -49,16 +49,20 @@ export const Home = () => {
 
 
   return (
-      <div className="flex flex-row items-center justify-center w-full h-full gap-10">
-        <div className='flex flex-col'>
+      <div className="flex flex-col lg:flex-row items-center justify-center w-full h-full lg:gap-10">
+        <div className='hidden lg:flex flex-col'>
           <SparklesText text="Video calls using" />
           <SparklesText sparklesCount={10} className='text-[120px]' text="WebRTC" />
         </div>
         <div className="relative h-[600px] w-[300px]">
           <Iphone15Pro className="size-full" />
           <BorderBeam className='mx-1 rounded-[50px]' duration={12} borderWidth={15} delay={9} />
-          <div className='absolute inset-0 p-8 flex flex-col justify-center m-auto size-full text-sm font-medium'>
-            <form className="flex flex-col m-auto w-full text-gray-600">
+          <div className='absolute inset-0 p-8 flex flex-col items-center justify-center gap-8 m-auto size-full text-sm font-medium'>
+            <div className='flex lg:hidden flex-col' >
+              <SparklesText sparklesCount={2} className='text-[20px] mt-10' text="Video calls using" />
+              <SparklesText sparklesCount={2} className='text-[50px] my-5' text="WebRTC" />
+            </div>
+            <form className="flex flex-col lg:m-auto w-full text-gray-600">
               <input
                 ref={inputRef}
                 className={`h-10 p-4 mb-2 rounded-xl bg-white transition-all border outline-none ${error.name ? 'border-red-500 placeholder:text-red-500' : ''}`}

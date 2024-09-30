@@ -7,9 +7,11 @@ import { OnlineUserList } from '../components/OnlineUserList';
 import { Player } from '../components/Player';
 import { User } from 'react-feather';
 import audio from '../assets/ringtone.mp3';
+import callertone from '../assets/callertone.mp3';
 import { cn } from "../lib/utils";
 import { DotPattern } from "../components/ui/dot-pattern";
 import { toast } from "sonner"
+import { LogOutIcon } from 'lucide-react';
 
 
 class WebRTCConnection {
@@ -93,7 +95,7 @@ export const Room = () => {
   // }, [])
 
   const webRTCConnectionRef = useRef(null);
-
+  const audioRef = useRef(new Audio(callertone)); // Create the audio element here
   const [remoteStream, setRemoteStream] = useState(null);
   const [myStream, setMyStream] = useState(null);
   const [connected, setConnected] = useState(false);
@@ -133,6 +135,7 @@ export const Room = () => {
       return;
     }
     setCalling(user);
+    audioRef.current?.play();
     await webRTCConnectionRef.current.createOffer();
     await new Promise(resolve => setTimeout(resolve, 1000));
     socket.emit('call_user', { to: user.id, offer: webRTCConnectionRef.current.peer.localDescription });
@@ -179,6 +182,7 @@ export const Room = () => {
   const handleCallAccepted = async ({ from, ans }) => {
     await webRTCConnectionRef.current.peer.setRemoteDescription(ans);
     console.log('Call got accepted');
+    audioRef.current.pause();
     setConnected(true)
     const user = onlineUsers.find(user => user.id === from);
     setConnectedUser(user);
@@ -193,6 +197,7 @@ export const Room = () => {
 const endConnection = useCallback(() => {
   setConnected(false);
   setRemoteStream(null);
+  audioRef.current.pause();
   setCalling(null);
 
   if (myStream) {myStream.getTracks().forEach((track) => {
@@ -292,16 +297,20 @@ const handleDeclinedOrNoResponse = () => {
         />
         <nav className="w-full flex justify-between p-5 border-b border-gray-400 box-border">
           <span className="text-blue-500 text-2xl font-bold italic">Peer</span>
-          <span className="flex items-center gap-2 p-2 border border-gray-400 rounded-lg text-gray-600 text-xl font-normal">
-            <User />{user?.name}
-          </span>
+            <div className="flex items-center gap-2 p-1 border border-gray-400 rounded-md text-gray-600 text-xl font-normal">
+              <User />{user?.name}
+              <i onClick={() => navigate('/')} className='cursor-pointer size-10 bg-black flex items-center justify-center rounded-md'>
+              <LogOutIcon color='white'/>
+              </i>
+
+            </div>
         </nav>
         <section className="w-full">
           {
             !connected ? (
               <>
-                <div className="w-full min-h-[80vh] p-16 flex items-center justify-center gap-12 flex-row box-border">
-                  <div className="flex-[0_0_70%] text-5xl">Seamless Connections, Anytime, Anywhere! 🚀</div>
+                <div className="w-full min-h-[80vh] p-4 lg:p-16 flex flex-col lg:flex-row items-center justify-center gap-12 box-border">
+                  <div className="flex-[0_0_70%] lg:text-5xl text-2xl font-bold">Seamless Connections, Anytime, Anywhere! 🚀</div>
                   <div className="flex-[0_0_30%]">
                     <OnlineUserList calling={calling} onlineUsers={onlineUsers} handleCallUser={handleCallUser} />
                   </div>
